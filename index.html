@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Video Call</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+#app {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#videoArea {
+    position: relative;
+    flex: 1;
+    background: #000;
+    overflow: hidden;
+}
+
+#camera {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+}
+
+#avatar {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 130px;
+    height: 130px;
+    object-fit: cover;
+    border-radius: 15px;
+    border: 2px solid white;
+    background: #222;
+}
+
+#status {
+    position: absolute;
+    left: 15px;
+    top: 15px;
+    background: rgba(0,0,0,.65);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+#chat {
+    position: absolute;
+    left: 15px;
+    right: 15px;
+    bottom: 15px;
+    max-height: 35%;
+    overflow-y: auto;
+    background: rgba(0,0,0,.65);
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.message {
+    margin: 6px 0;
+}
+
+.you {
+    color: #8fd3ff;
+}
+
+.ai {
+    color: #a8ff9e;
+}
+
+#controls {
+    height: 75px;
+    background: #181818;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+}
+
+button {
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 15px;
+    background: #333;
+    color: white;
+    font-size: 14px;
+}
+
+button:active {
+    background: #555;
+}
+
+#settings {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+}
+
+#settingsBox {
+    width: min(450px, 92vw);
+    background: #202020;
+    border-radius: 16px;
+    padding: 20px;
+}
+
+#settingsBox h2 {
+    margin-top: 0;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #555;
+    background: #111;
+    color: white;
+    margin: 8px 0 15px;
+}
+
+.small {
+    color: #aaa;
+    font-size: 12px;
+    line-height: 1.4;
+}
+</style>
+</head>
+
+<body>
+
+<div id="app">
+
+    <div id="videoArea">
+
+        <video
+            id="camera"
+            autoplay
+            muted
+            playsinline>
+        </video>
+
+        <img
+            id="avatar"
+            src="avatar.jpg"
+            alt="AI Avatar">
+
+        <div id="status">
+            Ready
+        </div>
+
+        <div id="chat"></div>
+
+    </div>
+
+    <div id="controls">
+
+        <button id="cameraButton">
+            📹 Camera
+        </button>
+
+        <button id="micButton">
+            🎤 Talk
+        </button>
+
+        <button id="aiButton">
+            🤖 Ask AI
+        </button>
+
+        <button id="speakButton">
+            🔊 Speak
+        </button>
+
+        <button id="settingsButton">
+            ⚙️ Settings
+        </button>
+
+    </div>
+
+</div>
+
+
+<div id="settings">
+
+    <div id="settingsBox">
+
+        <h2>⚙️ Settings</h2>
+
+        <label>
+            Hugging Face API Token
+        </label>
+
+        <input
+            id="tokenInput"
+            type="password"
+            placeholder="hf_...">
+
+        <p class="small">
+            Your token is stored only in this browser using
+            localStorage. It is sent directly to Hugging Face
+            when you use the AI.
+        </p>
+
+        <button id="saveSettings">
+            💾 Save
+        </button>
+
+        <button id="closeSettings">
+            Close
+        </button>
+
+    </div>
+
+</div>
+
+
+<script type="module">
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+const tokenInput = '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';
+
+const settings =
+    document.getElementById("settings");
+
+const savedToken = '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';
+
+if (savedToken) {
+    tokenInput.value = savedToken;
+}
+
+
+/* =========================================================
+   UI
+========================================================= */
+
+const status =
+    document.getElementById("status");
+
+const chat =
+    document.getElementById("chat");
+
+function setStatus(text) {
+    status.textContent = text;
+}
+
+function addMessage(who, text) {
+
+    const div = document.createElement("div");
+
+    div.className =
+        "message " +
+        (who === "You" ? "you" : "ai");
+
+    div.textContent =
+        who + ": " + text;
+
+    chat.appendChild(div);
+
+    chat.scrollTop =
+        chat.scrollHeight;
+}
+
+
+/* =========================================================
+   SETTINGS BUTTONS
+========================================================= */
+
+document
+    .getElementById("settingsButton")
+    .onclick = () => {
+
+        settings.style.display = "flex";
+
+    };
+
+
+document
+    .getElementById("closeSettings")
+    .onclick = () => {
+
+        settings.style.display = "none";
+
+    };
+
+
+document
+    .getElementById("saveSettings")
+    .onclick = () => {
+
+        const token = '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';
+
+        settings.style.display = "none";
+    };
+
+
+/* =========================================================
+   CAMERA
+========================================================= */
+
+const video =
+    document.getElementById("camera");
+
+let cameraStream = null;
+
+document
+    .getElementById("cameraButton")
+    .onclick = async () => {
+
+        try {
+
+            if (!cameraStream) {
+
+                cameraStream =
+                    await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: "user",
+                            width: {
+                                ideal: 640
+                            },
+                            height: {
+                                ideal: 480
+                            }
+                        },
+                        audio: false
+                    });
+
+                video.srcObject =
+                    cameraStream;
+
+                setStatus("Camera running");
+
+            } else {
+
+                cameraStream
+                    .getTracks()
+                    .forEach(track =>
+                        track.stop()
+                    );
+
+                cameraStream = null;
+
+                video.srcObject = null;
+
+                setStatus("Camera stopped");
+
+            }
+
+        } catch (error) {
+
+            console.error(error);
+
+            setStatus(
+                "Camera permission failed"
+            );
+
+            alert(
+                "Could not access the camera."
+            );
+        }
+
+    };
+
+
+/* =========================================================
+   MICROPHONE / SPEECH RECOGNITION
+========================================================= */
+
+let recognition = null;
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+
+    recognition =
+        new SpeechRecognition();
+
+    recognition.continuous = false;
+
+    recognition.interimResults = false;
+
+    recognition.lang = "en-US";
+
+    recognition.onstart = () => {
+
+        setStatus("Listening...");
+
+    };
+
+    recognition.onresult = event => {
+
+        const text =
+            event.results[0][0].transcript;
+
+        addMessage("You", text);
+
+        askAI(text);
+
+    };
+
+    recognition.onerror = event => {
+
+        console.error(event.error);
+
+        setStatus(
+            "Speech recognition error"
+        );
+
+    };
+
+    recognition.onend = () => {
+
+        if (cameraStream) {
+            setStatus("Camera running");
+        } else {
+            setStatus("Ready");
+        }
+
+    };
+
+} else {
+
+    document
+        .getElementById("micButton")
+        .disabled = true;
+
+}
+
+
+document
+    .getElementById("micButton")
+    .onclick = () => {
+
+        if (!recognition) {
+
+            alert(
+                "Speech recognition is not supported by this browser."
+            );
+
+            return;
+        }
+
+        recognition.start();
+
+    };
+
+
+/* =========================================================
+   CAMERA IMAGE COMPRESSION
+========================================================= */
+
+function getCameraImage() {
+
+    if (!video.videoWidth ||
+        !video.videoHeight) {
+
+        return null;
+    }
+
+    /*
+       Small resolution keeps the old tablet
+       and network from doing too much work.
+    */
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width = 384;
+
+    canvas.height = 288;
+
+    const ctx =
+        canvas.getContext("2d");
+
+    ctx.drawImage(
+        video,
+        0,
+        0,
+        384,
+        288
+    );
+
+    return canvas.toDataURL(
+        "image/jpeg",
+        0.45
+    );
+}
+
+
+/* =========================================================
+   HUGGING FACE AI
+========================================================= */
+
+async function askAI(userText) {
+
+    const token =
+        localStorage.getItem("HF_TOKEN");
+
+    if (!token) {
+
+        addMessage(
+            "AI",
+            "Please enter your Hugging Face token in Settings first."
+        );
+
+        settings.style.display =
+            "flex";
+
+        return;
+    }
+
+    setStatus("AI thinking...");
+
+    const image =
+        getCameraImage();
+
+    const content = [];
+
+    content.push({
+        type: "text",
+        text: userText || "What do you see?"
+    });
+
+    if (image) {
+
+        content.push({
+            type: "image_url",
+            image_url: {
+                url: image
+            }
+        });
+
+    }
+
+    try {
+
+        const response =
+            await fetch(
+                "https://router.huggingface.co/v1/chat/completions",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Authorization":
+                            "Bearer " + token,
+
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        model:
+                            "Qwen/Qwen2.5-VL-3B-Instruct",
+
+                        messages: [
+
+                            {
+                                role: "system",
+
+                                content:
+                                    "You are a friendly, wholesome AI video-call companion. Keep responses short and conversational because the user is on a slow, old tablet. You can discuss what is visible in the camera image, but never identify people or guess their identity. Do not make sexual or romantic comments about people."
+                            },
+
+                            {
+                                role: "user",
+
+                                content: content
+                            }
+
+                        ],
+
+                        max_tokens: 180,
+
+                        temperature: 0.7
+
+                    })
+                }
+            );
+
+
+        if (!response.ok) {
+
+            const errorText =
+                await response.text();
+
+            console.error(
+                "Hugging Face error:",
+                errorText
+            );
+
+            throw new Error(
+                "Hugging Face request failed: " +
+                response.status
+            );
+        }
+
+
+        const data =
+            await response.json();
+
+        const answer =
+            data?.choices?.[0]?.message?.content;
+
+
+        if (!answer) {
+
+            throw new Error(
+                "No AI response received."
+            );
+        }
+
+
+        addMessage(
+            "AI",
+            answer
+        );
+
+        window.lastAIResponse =
+            answer;
+
+        setStatus("AI ready");
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        addMessage(
+            "AI",
+            "Sorry, I couldn't reach the AI right now."
+        );
+
+        setStatus("AI error");
+
+    }
+
+}
+
+
+/* =========================================================
+   ASK AI BUTTON
+========================================================= */
+
+document
+    .getElementById("aiButton")
+    .onclick = () => {
+
+        askAI(
+            "Look at the camera and tell me what you notice."
+        );
+
+    };
+
+
+/* =========================================================
+   KOKORO TTS
+========================================================= */
+
+let kokoro = null;
+
+let kokoroLoading =
+    false;
+
+let kokoroReady =
+    false;
+
+
+async function loadKokoro() {
+
+    if (kokoroReady)
+        return;
+
+    if (kokoroLoading)
+        return;
+
+    kokoroLoading = true;
+
+    setStatus(
+        "Loading Kokoro..."
+    );
+
+    try {
+
+        const module =
+            await import(
+                "https://esm.sh/kokoro-js@1.2.1"
+            );
+
+        const KokoroTTS =
+            module.KokoroTTS;
+
+        let device =
+            "wasm";
+
+        let dtype =
+            "q4";
+
+        if (
+            "gpu" in navigator
+        ) {
+
+            try {
+
+                const adapter =
+                    await navigator.gpu.requestAdapter();
+
+                if (adapter) {
+
+                    device =
+                        "webgpu";
+
+                    dtype =
+                        "fp32";
+
+                }
+
+            } catch (e) {
+
+                console.log(
+                    "WebGPU unavailable"
+                );
+
+            }
+
+        }
+
+
+        kokoro =
+            await KokoroTTS.from_pretrained(
+                "onnx-community/Kokoro-82M-v1.0-ONNX",
+                {
+                    device: device,
+                    dtype: dtype
+                }
+            );
+
+
+        kokoroReady =
+            true;
+
+        setStatus(
+            "Kokoro ready"
+        );
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        setStatus(
+            "Kokoro failed to load"
+        );
+
+        alert(
+            "Kokoro could not load. The tablet may not have enough memory."
+        );
+
+    }
+
+    kokoroLoading = false;
+
+}
+
+
+/* =========================================================
+   KOKORO SPEECH
+========================================================= */
+
+async function speak(text) {
+
+    if (!text)
+        return;
+
+    await loadKokoro();
+
+    if (!kokoro)
+        return;
+
+    setStatus(
+        "Generating speech..."
+    );
+
+    try {
+
+        const audio =
+            await kokoro.generate(
+                text,
+                {
+                    voice:
+                        "af_heart"
+                }
+            );
+
+        const blob =
+            new Blob(
+                [audio],
+                {
+                    type:
+                        "audio/wav"
+                }
+            );
+
+        const url =
+            URL.createObjectURL(
+                blob
+            );
+
+        const player =
+            new Audio(url);
+
+        player.onended =
+            () => {
+
+                URL.revokeObjectURL(
+                    url
+                );
+
+                setStatus(
+                    "Ready"
+                );
+
+            };
+
+        await player.play();
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        setStatus(
+            "Speech failed"
+        );
+
+    }
+
+}
+
+
+document
+    .getElementById("speakButton")
+    .onclick = () => {
+
+        if (!window.lastAIResponse) {
+
+            alert(
+                "Ask the AI something first."
+            );
+
+            return;
+        }
+
+        speak(
+            window.lastAIResponse
+        );
+
+    };
+
+
+/* =========================================================
+   INITIAL STATUS
+========================================================= */
+
+setStatus("Ready");
+
+</script>
+
+</body>
+</html>
